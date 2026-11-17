@@ -24,6 +24,10 @@ jobs:
 
       - name: Send Test Notification
         env:
+          NODE_OPTIONS: "--dns-result-order=ipv4first"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
+          WHATSAPP_APIKEY: ${{ secrets.WHATSAPP_APIKEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: npm run test-telegram
