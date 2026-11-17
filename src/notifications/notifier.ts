@@ -36,6 +36,8 @@ export interface Notifier {
   notifyBookingConfirmed(booking: ConfirmedBookingDetails): Promise<void>;
   notifyAuthFailure(reason: string): Promise<void>;
   notifyReconciliationRequired(details: ReconciliationDetails): Promise<void>;
+  notifyAlreadyBooked(details: { date: string; bookingCode: string; tripId: string | number; routeName: string }): Promise<void>;
+  notifyWindowClosed(details: { reason: string; date: string }): Promise<void>;
 }
 
 export class TelegramNotifier implements Notifier {
@@ -56,7 +58,7 @@ export class TelegramNotifier implements Notifier {
     }
 
     try {
-      const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
+      const url = `${config.telegramApiBase}/bot${this.botToken}/sendMessage`;
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,7 +68,7 @@ export class TelegramNotifier implements Notifier {
           parse_mode: "HTML",
           disable_web_page_preview: true
         }),
-        signal: AbortSignal.timeout(10_000)
+        signal: AbortSignal.timeout(20_000)
       });
 
       if (!response.ok) {
@@ -178,6 +180,33 @@ export class TelegramNotifier implements Notifier {
       "The booking may or may not have been created on the server.",
       "<b>Automatic retries have been BLOCKED.</b>",
       "Please check your ITI booking dashboard manually to reconcile."
+    ].join("\n");
+    await this.sendTelegramMessage(text);
+  }
+
+  async notifyAlreadyBooked(details: {
+    date: string;
+    bookingCode: string;
+    tripId: string | number;
+    routeName: string;
+  }): Promise<void> {
+    const text = [
+      "ℹ️ <b>ITI Bus Agent: Already Booked</b>",
+      `• Date: <b>${details.date}</b>`,
+      `• Booking Code: <b><code>${details.bookingCode}</code></b>`,
+      `• Route: ${details.routeName}`,
+      `• Trip ID: <code>${details.tripId}</code>`,
+      "No additional booking action is needed for this date."
+    ].join("\n");
+    await this.sendTelegramMessage(text);
+  }
+
+  async notifyWindowClosed(details: { reason: string; date: string }): Promise<void> {
+    const text = [
+      "ℹ️ <b>ITI Bus Agent: Booking Window Ended</b>",
+      `• Date: <b>${details.date}</b>`,
+      `• Outcome: ${details.reason}`,
+      "Daily monitoring session completed cleanly."
     ].join("\n");
     await this.sendTelegramMessage(text);
   }

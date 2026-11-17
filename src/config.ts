@@ -38,9 +38,11 @@ export const config = {
   databasePath: path.resolve(required("DATABASE_PATH", "./data/bookings.db")),
   headless: required("HEADLESS", "true") === "true",
   dailyStartTime: required("DAILY_START_TIME", "11:45"),
+  monitoringWindowMinutes: Number(required("MONITORING_WINDOW_MINUTES", "30")),
   waitForSchedule: required("WAIT_FOR_SCHEDULE", "true") === "true",
   telegramBotToken: optional("TELEGRAM_BOT_TOKEN"),
   telegramChatId: optional("TELEGRAM_CHAT_ID"),
+  telegramApiBase: optional("TELEGRAM_API_BASE", "https://api.telegram.org").replace(/\/$/, ""),
   rateLimitMaxRequests: Number(required("RATE_LIMIT_MAX_REQUESTS", "30")),
   rateLimitWindowMs: Number(required("RATE_LIMIT_WINDOW_MS", "60000")),
   requestTimeoutMs: Number(required("REQUEST_TIMEOUT_MS", "15000")),
@@ -49,6 +51,10 @@ export const config = {
 
 if (!Number.isFinite(config.pollIntervalMs) || config.pollIntervalMs < 15000) {
   throw new Error("POLL_INTERVAL_MS must be at least 15000.");
+}
+
+if (!Number.isFinite(config.monitoringWindowMinutes) || config.monitoringWindowMinutes < 1 || config.monitoringWindowMinutes > 360) {
+  throw new Error("MONITORING_WINDOW_MINUTES must be between 1 and 360.");
 }
 
 if (!/^\d{2}:\d{2}$/.test(config.dailyStartTime)) {

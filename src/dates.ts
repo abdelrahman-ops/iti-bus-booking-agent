@@ -117,3 +117,75 @@ export function getNextCairoTargetTime(
 export function formatCairoDateTime(date: Date = new Date()): string {
   return `${date.toLocaleString("en-US", { timeZone: config.timezone })} (${config.timezone})`;
 }
+
+export function formatCairoTimeOnly(date: Date = new Date()): string {
+  return date.toLocaleTimeString("en-US", {
+    timeZone: config.timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
+/**
+ * Returns a Date object representing today's occurrence of HH:MM in Africa/Cairo.
+ */
+export function getCairoTodayTime(targetTime: string, fromDate: Date = new Date()): Date {
+  const { hour: targetHour, minute: targetMinute } = parseTargetTime(targetTime);
+  const cairo = getCairoDateParts(fromDate);
+
+  let candidate = new Date(Date.UTC(cairo.year, cairo.month - 1, cairo.day, targetHour - 2, targetMinute, 0, 0));
+  let candidateCairo = getCairoDateParts(candidate);
+  const hourDiff = targetHour - candidateCairo.hour;
+  if (hourDiff !== 0) {
+    candidate = new Date(candidate.getTime() + hourDiff * 3600_000);
+  }
+  return candidate;
+}
+
+export interface CairoWindowStatus {
+  status: "BEFORE_WINDOW" | "INSIDE_WINDOW" | "AFTER_WINDOW";
+  windowStart: Date;
+  windowEnd: Date;
+  msUntilStart: number;
+  msRemainingInWindow: number;
+}
+
+/**
+ * Evaluates whether fromDate is before, inside, or after today's booking window.
+ */
+export function getCairoWindowStatus(
+  startTime: string,
+  windowMinutes: number,
+  fromDate: Date = new Date()
+): CairoWindowStatus {
+  const windowStart = getCairoTodayTime(startTime, fromDate);
+  const windowEnd = new Date(windowStart.getTime() + windowMinutes * 60_000);
+  const nowMs = fromDate.getTime();
+
+  if (nowMs < windowStart.getTime()) {
+    return {
+      status: "BEFORE_WINDOW",
+      windowStart,
+      windowEnd,
+      msUntilStart: windowStart.getTime() - nowMs,
+      msRemainingInWindow: windowMinutes * 60_000
+    };
+  } else if (nowMs <= windowEnd.getTime()) {
+    return {
+      status: "INSIDE_WINDOW",
+      windowStart,
+      windowEnd,
+      msUntilStart: 0,
+      msRemainingInWindow: windowEnd.getTime() - nowMs
+    };
+  } else {
+    return {
+      status: "AFTER_WINDOW",
+      windowStart,
+      windowEnd,
+      msUntilStart: 0,
+      msRemainingInWindow: 0
+    };
+  }
+}

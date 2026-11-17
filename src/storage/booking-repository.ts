@@ -176,11 +176,26 @@ export class BookingRepository {
    * Checks if there is already a confirmed booking for the specified date and direction.
    */
   hasConfirmedBookingForDate(tripDate: string, direction: string): boolean {
+    return this.getConfirmedBookingForDate(tripDate, direction) !== null;
+  }
+
+  /**
+   * Retrieves the confirmed booking attempt for the specified date and optional direction.
+   */
+  getConfirmedBookingForDate(tripDate: string, direction?: string): BookingAttempt | null {
+    if (direction && direction !== "either") {
+      const stmt = this.db.prepare(
+        "SELECT * FROM booking_attempts WHERE trip_date = ? AND direction = ? AND status = 'CONFIRMED' LIMIT 1"
+      );
+      const row = stmt.get(tripDate, direction) as RawRow | undefined;
+      return row ? mapRow(row) : null;
+    }
+
     const stmt = this.db.prepare(
-      "SELECT id FROM booking_attempts WHERE trip_date = ? AND direction = ? AND status = 'CONFIRMED' LIMIT 1"
+      "SELECT * FROM booking_attempts WHERE trip_date = ? AND status = 'CONFIRMED' LIMIT 1"
     );
-    const row = stmt.get(tripDate, direction);
-    return row !== undefined;
+    const row = stmt.get(tripDate) as RawRow | undefined;
+    return row ? mapRow(row) : null;
   }
 
   /**

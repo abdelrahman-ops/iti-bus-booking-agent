@@ -1,5 +1,11 @@
 import { config } from "./config.js";
-import { cairoDateAtOffset, getNextCairoTargetTime, isCairoTimePast, formatCairoDateTime } from "./dates.js";
+import {
+  cairoDateAtOffset,
+  getNextCairoTargetTime,
+  formatCairoDateTime,
+  formatCairoTimeOnly,
+  getCairoWindowStatus
+} from "./dates.js";
 import { ItiClient, NetworkTimeoutError } from "./api/iti-client.js";
 import { BookingEngine } from "./booking/booking-engine.js";
 import { BookingRepository } from "./storage/booking-repository.js";
@@ -50,38 +56,100 @@ export class AvailabilityMonitor {
     });
   }
 
-  private async waitForScheduledStart(): Promise<void> {
-    if (!config.waitForSchedule) {
-      log.info("WAIT_FOR_SCHEDULE is disabled. Monitoring starts immediately.");
-      return;
-    }
+  private areAllWatchedDatesBooked(): boolean {
+    if (config.dateOffsets.length === 0) return true;
 
-    const isPast = isCairoTimePast(config.dailyStartTime);
-    if (isPast) {
-      log.info(
-        `Current Cairo time is already past scheduled daily start time (${config.dailyStartTime}). Starting monitoring immediately.`,
-        { cairoTime: formatCairoDateTime() }
-      );
-      return;
-    }
-
-    const { targetDate, msUntil } = getNextCairoTargetTime(config.dailyStartTime);
-    const minutesUntil = (msUntil / 60_000).toFixed(1);
-    log.info(
-      `Waiting for scheduled Cairo start time: ${config.dailyStartTime} (${minutesUntil} minutes away)...`,
-      {
-        targetCairoTime: formatCairoDateTime(targetDate),
-        cairoTimeNow: formatCairoDateTime()
+    for (const offset of config.dateOffsets) {
+      const date = cairoDateAtOffset(offset);
+      const confirmed = this.repository.getConfirmedBookingForDate(date, config.direction);
+      if (!confirmed) {
+        return false;
       }
+    }
+    return true;
+  }
+
+  private async waitForScheduledStart(): Promise<{ deadlineMs: number } | null> {
+    const now = new Date();
+    const windowStatus = getCairoWindowStatus(
+      config.dailyStartTime,
+      config.monitoringWindowMinutes,
+      now
     );
 
-    // Sleep until target time
+    if (!config.waitForSchedule) {
+      const deadlineMs = Date.now() + config.monitoringWindowMinutes * 60_000;
+      log.info(
+        `WAIT_FOR_SCHEDULE is disabled. Monitoring starts immediately for up to ${config.monitoringWindowMinutes} minutes.`,
+        { deadline: formatCairoDateTime(new Date(deadlineMs)) }
+      );
+      return { deadlineMs };
+    }
+
+    if (windowStatus.status === "BEFORE_WINDOW") {
+      const minutesUntil = (windowStatus.msUntilStart / 60_000).toFixed(1);
+      log.info(
+        `Waiting for scheduled Cairo start time: ${config.dailyStartTime} (${minutesUntil} minutes away)...`,
+        {
+          targetCairoTime: formatCairoDateTime(windowStatus.windowStart),
+          cairoTimeNow: formatCairoDateTime(now)
+        }
+      );
+      await this.sleep(windowStatus.msUntilStart);
+      if (this.stopped) return null;
+
+      const deadlineMs = Date.now() + config.monitoringWindowMinutes * 60_000;
+      log.info(
+        `Scheduled start time reached (${config.dailyStartTime}). Starting monitoring window for ${config.monitoringWindowMinutes} minutes.`,
+        { deadline: formatCairoDateTime(new Date(deadlineMs)) }
+      );
+      return { deadlineMs };
+    }
+
+    if (windowStatus.status === "INSIDE_WINDOW") {
+      const remainingMinutes = (windowStatus.msRemainingInWindow / 60_000).toFixed(1);
+      const deadlineMs = Date.now() + windowStatus.msRemainingInWindow;
+      log.info(
+        `Current Cairo time is INSIDE today's booking window (${config.dailyStartTime} to ${formatCairoTimeOnly(windowStatus.windowEnd)}).`,
+        {
+          cairoTimeNow: formatCairoDateTime(now),
+          remainingMinutes,
+          deadline: formatCairoDateTime(new Date(deadlineMs))
+        }
+      );
+      return { deadlineMs };
+    }
+
+    // status === "AFTER_WINDOW"
+    const windowEndFormatted = formatCairoDateTime(windowStatus.windowEnd);
+    log.info(
+      `Current Cairo time (${formatCairoDateTime(now)}) is AFTER today's booking window (${config.dailyStartTime} to ${formatCairoTimeOnly(windowStatus.windowEnd)}). Today's window closed at ${windowEndFormatted}.`
+    );
+
+    if (config.exitOnSuccess || process.env.GITHUB_ACTIONS === "true") {
+      log.info("Outside today's booking window in one-shot/CI environment. Shutting down cleanly.");
+      this.stop();
+      return null;
+    }
+
+    // Continuous 24/7 daemon mode: sleep until tomorrow's start time
+    const { targetDate, msUntil } = getNextCairoTargetTime(config.dailyStartTime, now);
+    const hoursUntil = (msUntil / 3600_000).toFixed(1);
+    log.info(
+      `Sleeping until tomorrow's booking window at ${config.dailyStartTime} (${hoursUntil} hours away)...`,
+      { nextTargetTime: formatCairoDateTime(targetDate) }
+    );
     await this.sleep(msUntil);
+    if (this.stopped) return null;
+
+    const deadlineMs = Date.now() + config.monitoringWindowMinutes * 60_000;
+    return { deadlineMs };
   }
 
   async run(): Promise<void> {
     log.info("Availability monitor initialized.", {
       dailyStartTime: config.dailyStartTime,
+      monitoringWindowMinutes: config.monitoringWindowMinutes,
       intervalMs: config.pollIntervalMs,
       dateOffsets: config.dateOffsets,
       routeKeyword: config.routeKeyword,
@@ -91,22 +159,64 @@ export class AvailabilityMonitor {
       waitForSchedule: config.waitForSchedule
     });
 
-    await this.waitForScheduledStart();
-    if (this.stopped) return;
+    // Synchronize known active bookings from ITI remote history before anything else
+    await this.syncRemoteBookings();
+
+    // Check if watched dates are already booked
+    if (this.areAllWatchedDatesBooked()) {
+      log.info("All watched dates already have confirmed bookings. Nothing left to book.", {
+        watchedDates: config.dateOffsets.map((offset) => cairoDateAtOffset(offset))
+      });
+      for (const offset of config.dateOffsets) {
+        const date = cairoDateAtOffset(offset);
+        const confirmed = this.repository.getConfirmedBookingForDate(date, config.direction);
+        if (confirmed) {
+          log.info(`• ${date}: Confirmed booking #${confirmed.bookingCode} for trip ${confirmed.tripId} (${confirmed.routeName})`);
+          await this.notifier.notifyAlreadyBooked({
+            date,
+            bookingCode: confirmed.bookingCode || "UNKNOWN",
+            tripId: confirmed.tripId,
+            routeName: confirmed.routeName
+          });
+        }
+      }
+
+      if (config.exitOnSuccess || process.env.GITHUB_ACTIONS === "true") {
+        log.info("All bookings confirmed and EXIT_ON_SUCCESS/CI mode is active. Shutting down cleanly.");
+        return;
+      }
+    }
+
+    const schedule = await this.waitForScheduledStart();
+    if (!schedule || this.stopped) return;
 
     await this.notifier.notifyMonitoringStarted({
       dailyStartTime: config.dailyStartTime,
+      monitoringWindowMinutes: config.monitoringWindowMinutes,
       pollIntervalMs: config.pollIntervalMs,
       dateOffsets: config.dateOffsets,
       bookingEnabled: config.bookingEnabled
     });
 
-    // Synchronize known active bookings from ITI remote history
-    await this.syncRemoteBookings();
-
-    log.info("Entering active monitoring loop.");
+    log.info("Entering active monitoring loop.", {
+      deadline: formatCairoDateTime(new Date(schedule.deadlineMs))
+    });
 
     while (!this.stopped) {
+      if (Date.now() >= schedule.deadlineMs) {
+        const todayDate = cairoDateAtOffset(0);
+        log.info(
+          `Daily monitoring window (${config.monitoringWindowMinutes} minutes) has elapsed without finding or booking a trip. Stopping monitor cleanly for today.`,
+          { cairoTime: formatCairoDateTime() }
+        );
+        await this.notifier.notifyWindowClosed({
+          reason: `Daily booking window (${config.monitoringWindowMinutes} mins) ended without available seats.`,
+          date: todayDate
+        });
+        this.stop();
+        break;
+      }
+
       if (this.isCycleRunning) {
         log.warn("Previous monitoring cycle still active. Skipping overlapping run.");
         await this.sleep(1000);
@@ -128,8 +238,10 @@ export class AvailabilityMonitor {
 
       const elapsed = Date.now() - startedAt;
       const waitMs = Math.max(1000, config.pollIntervalMs - elapsed);
-      if (!this.stopped) {
-        await this.sleep(waitMs);
+      const remainingMs = schedule.deadlineMs - Date.now();
+
+      if (!this.stopped && remainingMs > 0) {
+        await this.sleep(Math.min(waitMs, remainingMs));
       }
     }
 
@@ -170,6 +282,14 @@ export class AvailabilityMonitor {
     for (const offset of config.dateOffsets) {
       if (this.stopped) break;
       const date = cairoDateAtOffset(offset);
+
+      const existingBooking = this.repository.getConfirmedBookingForDate(date, config.direction);
+      if (existingBooking) {
+        log.info(
+          `Skipping availability query for ${date}: Already confirmed booking #${existingBooking.bookingCode} (Trip ${existingBooking.tripId}) exists.`
+        );
+        continue;
+      }
 
       try {
         const rawTrips = await this.client.getAvailableTrips(date);

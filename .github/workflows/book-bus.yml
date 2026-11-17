@@ -13,7 +13,7 @@ jobs:
   book-bus:
     name: Monitor and Book Bus
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
 
     steps:
       - name: Checkout Code
@@ -43,6 +43,7 @@ jobs:
           EXIT_ON_SUCCESS: "true"
           WAIT_FOR_SCHEDULE: "true"
           DAILY_START_TIME: "11:45"
+          MONITORING_WINDOW_MINUTES: "30"
           POLL_INTERVAL_MS: "15000"
           WATCH_DATE_OFFSETS: "0"
           ROUTE_KEYWORD: "6 أكتوبر"
