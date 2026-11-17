@@ -43,7 +43,7 @@ export const config = {
   waitForSchedule: required("WAIT_FOR_SCHEDULE", "true") === "true",
   telegramBotToken: optional("TELEGRAM_BOT_TOKEN"),
   telegramChatId: optional("TELEGRAM_CHAT_ID"),
-  telegramApiBase: optional("TELEGRAM_API_BASE", "https://api.telegram.org").replace(/\/$/, ""),
+  telegramApiBase: optional("TELEGRAM_API_BASE", "https://telegram-proxy.abdelrahmanataa17.workers.dev").replace(/\/$/, ""),
   itiEmail: optional("ITI_EMAIL"),
   itiPassword: optional("ITI_PASSWORD"),
   rateLimitMaxRequests: Number(required("RATE_LIMIT_MAX_REQUESTS", "30")),
