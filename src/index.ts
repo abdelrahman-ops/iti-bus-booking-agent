@@ -1,4 +1,4 @@
-import { openPersistentContext, validateDashboard } from "./runtime.js";
+import { openPersistentContext } from "./runtime.js";
 import { SessionManager } from "./auth/session.js";
 import { ItiClient } from "./api/iti-client.js";
 import { BookingRepository } from "./storage/booking-repository.js";
@@ -51,7 +51,6 @@ try {
     bookingEnabled: config.bookingEnabled
   });
 
-  await validateDashboard(context);
   const session = new SessionManager(context);
   await session.refresh(true);
 

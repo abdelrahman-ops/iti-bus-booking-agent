@@ -1,4 +1,4 @@
-import { openPersistentContext, validateDashboard } from "./runtime.js";
+import { openPersistentContext } from "./runtime.js";
 import { SessionManager } from "./auth/session.js";
 import { ItiClient } from "./api/iti-client.js";
 import { BookingRepository } from "./storage/booking-repository.js";
@@ -73,7 +73,6 @@ async function runDiagnostics(): Promise<void> {
   let client: ItiClient;
 
   try {
-    await validateDashboard(context);
     console.log(`    • Refreshing session token via POST /api/v1/auth/refresh...`);
     await session.refresh(true);
     console.log(`    ✅ Session refresh succeeded. Valid access token held in memory.`);

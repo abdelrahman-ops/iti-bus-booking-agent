@@ -21,12 +21,18 @@ try {
   await rl.question("After you reach the authenticated ITI dashboard, press Enter here...");
   rl.close();
 
-  const session = new SessionManager(context);
-  await session.refresh(true);
-  log.info("Login bootstrap validated. Persistent browser profile is ready.");
-
-  // Export fresh storage state immediately
+  // Capture fresh session state immediately from the logged-in browser
   const statePath = path.resolve("./data/storage-state.json");
+  await context.storageState({ path: statePath });
+
+  // Validate session by obtaining an access token
+  const session = new SessionManager(context);
+  const token = await session.getAccessToken();
+  if (token) {
+    log.info("Session validated successfully. Access token obtained.");
+  }
+
+  // Export fresh storage state with any rotated cookies
   await context.storageState({ path: statePath });
   const rawJson = fs.readFileSync(statePath, "utf-8");
   const b64 = Buffer.from(rawJson, "utf-8").toString("base64");

@@ -1,6 +1,7 @@
 import type { BrowserContext } from "playwright";
 import { config } from "../config.js";
 import { log } from "../log.js";
+import { persistStorageState } from "../runtime.js";
 
 interface RefreshResponse {
   success?: boolean;
@@ -62,6 +63,9 @@ export class SessionManager {
       this.accessToken = token;
       this.expiresAtMs = this.decodeExpiry(token);
       log.info("ITI session refreshed; access token retained in memory only.");
+
+      // Persist rotated cookies to data/storage-state.json
+      await persistStorageState(this.context);
     })().finally(() => {
       this.refreshing = null;
     });
