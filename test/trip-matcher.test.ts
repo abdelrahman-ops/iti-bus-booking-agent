@@ -216,4 +216,39 @@ describe("Trip Matcher & Normalization", () => {
     assert.equal(summary.routeName, "خط 6 أكتوبر");
     assert.equal((summary as Record<string, unknown>).secretToken, undefined);
   });
+
+  it("matches Ramses route with startLocation التوحيد والنور", () => {
+    const ramsesTrip = {
+      id: 405,
+      routeId: 16,
+      routeName: "خط رمسيس",
+      startLocation: "التوحيد والنور",
+      endLocation: "القرية الذكية",
+      tripDate: validToday,
+      departureTime: "16:00:00",
+      pickupStopId: null,
+      pickupStopName: null,
+      requiresPickupSelection: true,
+      isReturnTrip: true,
+      availableSeats: 5
+    };
+
+    const routeStops = [
+      { id: 31, stopName: "التوحيد والنور" },
+      { id: 32, stopName: "ميدان رمسيس" }
+    ];
+
+    // Using alias / routeStops matching with Ramses criteria
+    const evaluation = evaluateTrip(ramsesTrip, validToday, routeStops, {
+      routeKeyword: "رمسيس",
+      pickupKeyword: "التوحيد"
+    });
+    assert.equal(evaluation.status, "MATCH");
+    if (evaluation.status === "MATCH") {
+      assert.equal(evaluation.trip.tripId, 405);
+      assert.equal(evaluation.trip.pickupStopId, 31);
+      assert.equal(evaluation.trip.routeName, "خط رمسيس");
+      assert.equal(evaluation.trip.pickupStopName, "التوحيد والنور");
+    }
+  });
 });

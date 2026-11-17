@@ -138,12 +138,30 @@ function resolvePickupStopId(
 
   // 4. External route stops list (from GET /api/v1/routes/{routeId}/stops)
   if (candidateIds.size === 0 && Array.isArray(routeStops)) {
+    // 4a. First try exact keyword matching against route stops
     for (const stop of routeStops) {
       if (normalizeArabic(stop.stopName).includes(normalizedKeyword)) {
         if (typeof stop.id === "number" && Number.isInteger(stop.id) && stop.id > 0) {
           candidateIds.add(stop.id);
         }
       }
+    }
+
+    // 4b. If no keyword match, match against trip.startLocation (e.g. "التوحيد والنور")
+    if (candidateIds.size === 0 && typeof trip.startLocation === "string") {
+      const normStart = normalizeArabic(trip.startLocation);
+      for (const stop of routeStops) {
+        if (normalizeArabic(stop.stopName).includes(normStart)) {
+          if (typeof stop.id === "number" && Number.isInteger(stop.id) && stop.id > 0) {
+            candidateIds.add(stop.id);
+          }
+        }
+      }
+    }
+
+    // 4c. If still no match and route has exactly 1 stop, use it safely
+    if (candidateIds.size === 0 && routeStops.length === 1 && routeStops[0]?.id) {
+      candidateIds.add(routeStops[0].id);
     }
   }
 
@@ -180,7 +198,12 @@ function isDateWithinHorizon(tripDate: string): boolean {
 export function evaluateTrip(
   rawTrip: unknown,
   fallbackDate?: string,
-  routeStops?: RouteStopInfo[]
+  routeStops?: RouteStopInfo[],
+  criteria?: {
+    routeKeyword?: string;
+    pickupKeyword?: string;
+    direction?: "return" | "outbound" | "either";
+  }
 ): TripEvaluation {
   if (!rawTrip || typeof rawTrip !== "object" || Array.isArray(rawTrip)) {
     return {
@@ -192,16 +215,21 @@ export function evaluateTrip(
   const trip = rawTrip as Record<string, unknown>;
   const diagnostics = safeTripDiagnostic(trip);
 
+  const targetRouteKeyword = criteria?.routeKeyword ?? config.routeKeyword;
+  const targetPickupKeyword = criteria?.pickupKeyword ?? config.pickupKeyword;
+  const targetDirection = criteria?.direction ?? config.direction;
+
   // Extract Route Name
   const rawRouteName = trip.routeName ?? trip.route ?? trip.name ?? "";
   const routeName = typeof rawRouteName === "string" ? rawRouteName.trim() : "";
   const normalizedRoute = normalizeArabic(routeName);
-  const normalizedRouteKeyword = normalizeArabic(config.routeKeyword);
+  const normalizedRouteKeyword = normalizeArabic(targetRouteKeyword);
 
-  const normalizedPickupKeyword = normalizeArabic(config.pickupKeyword);
+  const normalizedPickupKeyword = normalizeArabic(targetPickupKeyword);
 
   // Extract Pickup Stop Name
   let rawPickupName =
+    trip.startLocation ??
     trip.pickupLocation ??
     trip.pickupStopName ??
     (typeof trip.pickupStop === "object" && trip.pickupStop !== null
@@ -237,7 +265,7 @@ export function evaluateTrip(
 
   // If still not found, check if route name contains pickup keyword (e.g. "خط 6 أكتوبر ليلة القدر 1")
   if (!rawPickupName && normalizedRoute.includes(normalizedPickupKeyword)) {
-    rawPickupName = config.pickupKeyword;
+    rawPickupName = targetPickupKeyword;
   }
 
   const pickupStopName = typeof rawPickupName === "string" ? rawPickupName.trim() : "";
@@ -254,32 +282,37 @@ export function evaluateTrip(
   if (!normalizedRoute.includes(normalizedRouteKeyword)) {
     return {
       status: "NO_MATCH",
-      reason: `Route name "${routeName}" does not contain "${config.routeKeyword}".`
+      reason: `Route name "${routeName}" does not contain "${targetRouteKeyword}".`
     };
   }
 
   // 2. Check Pickup Stop Name
-  if (!normalizedPickup.includes(normalizedPickupKeyword)) {
+  const isRamsesContextMatch =
+    (normalizedRoute.includes("رمسيس") || normalizedRouteKeyword.includes("رمسيس")) &&
+    (normalizedPickup.includes("التوحيد") || normalizedPickup.includes("رمسيس")) &&
+    (normalizedPickupKeyword.includes("رمسيس") || normalizedPickupKeyword.includes("التوحيد"));
+
+  if (!normalizedPickup.includes(normalizedPickupKeyword) && !isRamsesContextMatch) {
     return {
       status: "NO_MATCH",
-      reason: `Pickup stop "${pickupStopName}" does not contain "${config.pickupKeyword}".`
+      reason: `Pickup stop "${pickupStopName}" does not contain "${targetPickupKeyword}".`
     };
   }
 
   // 3. Check Direction
-  if (config.direction === "return" && isReturnTrip !== true) {
+  if (targetDirection === "return" && isReturnTrip !== true) {
     return {
       status: "NO_MATCH",
       reason: `Trip isReturnTrip (${String(isReturnTrip)}) is not exactly true (direction required: return).`
     };
   }
-  if (config.direction === "outbound" && isReturnTrip !== false) {
+  if (targetDirection === "outbound" && isReturnTrip !== false) {
     return {
       status: "NO_MATCH",
       reason: `Trip isReturnTrip (${String(isReturnTrip)}) is not false (direction required: outbound).`
     };
   }
-  if (typeof isReturnTrip !== "boolean" && config.direction !== "either") {
+  if (typeof isReturnTrip !== "boolean" && targetDirection !== "either") {
     return {
       status: "NO_MATCH",
       reason: `Trip direction is undefined/non-boolean (${String(isReturnTrip)}).`
