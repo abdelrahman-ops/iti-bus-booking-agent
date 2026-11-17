@@ -96,6 +96,33 @@ export class TelegramNotifier implements Notifier {
     }
   }
 
+  async sendDiscordMessage(text: string): Promise<boolean> {
+    if (!config.discordWebhookUrl) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(config.discordWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+        signal: AbortSignal.timeout(15_000)
+      });
+
+      if (!response.ok) {
+        log.warn("Discord webhook notification rejected.", { status: response.status });
+        return false;
+      }
+      log.info("Discord notification delivered successfully.");
+      return true;
+    } catch (error) {
+      log.warn("Discord webhook network error.", {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
   async sendWhatsAppMessage(text: string): Promise<boolean> {
     if (!config.whatsappPhone || !config.whatsappApiKey) {
       return false;
@@ -128,12 +155,13 @@ export class TelegramNotifier implements Notifier {
   }
 
   async sendNtfyMessage(title: string, text: string): Promise<boolean> {
-    if (!config.ntfyTopic) {
+    const topic = (config.ntfyTopic || "iti-bus-01015372301").trim();
+    if (!topic) {
       return false;
     }
 
     try {
-      const url = `https://ntfy.sh/${encodeURIComponent(config.ntfyTopic)}`;
+      const url = `https://ntfy.sh/${encodeURIComponent(topic)}`;
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -142,15 +170,16 @@ export class TelegramNotifier implements Notifier {
           Tags: "bus"
         },
         body: text,
-        signal: AbortSignal.timeout(10_000)
+        signal: AbortSignal.timeout(15_000)
       });
 
       if (!response.ok) {
-        log.warn("ntfy push notification failed.", { status: response.status });
+        const errorText = await response.text();
+        log.warn("ntfy push notification failed.", { status: response.status, response: errorText });
         return false;
       }
 
-      log.info(`Push notification delivered via ntfy.sh topic "${config.ntfyTopic}".`);
+      log.info(`Push notification delivered via ntfy.sh topic "${topic}".`);
       return true;
     } catch (error) {
       log.warn("ntfy push notification network error.", {
@@ -176,8 +205,13 @@ export class TelegramNotifier implements Notifier {
       tasks.push(this.sendWhatsAppMessage(plainText));
     }
 
-    if (config.ntfyTopic) {
+    const ntfyTopic = (config.ntfyTopic || "iti-bus-01015372301").trim();
+    if (ntfyTopic) {
       tasks.push(this.sendNtfyMessage(title, plainText));
+    }
+
+    if (config.discordWebhookUrl) {
+      tasks.push(this.sendDiscordMessage(plainText));
     }
 
     if (tasks.length === 0) {

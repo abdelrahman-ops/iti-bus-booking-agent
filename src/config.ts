@@ -8,7 +8,8 @@ function required(name: string, fallback?: string): string {
 }
 
 function optional(name: string, fallback = ""): string {
-  return process.env[name]?.trim() ?? fallback;
+  const value = process.env[name]?.trim();
+  return value ? value : fallback;
 }
 
 function numberList(value: string): number[] {
@@ -46,6 +47,7 @@ export const config = {
   whatsappPhone: optional("WHATSAPP_PHONE"),
   whatsappApiKey: optional("WHATSAPP_APIKEY"),
   ntfyTopic: optional("NTFY_TOPIC", "iti-bus-01015372301"),
+  discordWebhookUrl: optional("DISCORD_WEBHOOK_URL"),
   rateLimitMaxRequests: Number(required("RATE_LIMIT_MAX_REQUESTS", "30")),
   rateLimitWindowMs: Number(required("RATE_LIMIT_WINDOW_MS", "60000")),
   requestTimeoutMs: Number(required("REQUEST_TIMEOUT_MS", "15000")),

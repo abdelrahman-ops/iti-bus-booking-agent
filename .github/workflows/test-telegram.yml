@@ -29,5 +29,6 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
           WHATSAPP_APIKEY: ${{ secrets.WHATSAPP_APIKEY }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'iti-bus-01015372301' }}
         run: npm run test-telegram
