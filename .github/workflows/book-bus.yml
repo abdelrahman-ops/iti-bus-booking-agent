@@ -44,7 +44,7 @@ jobs:
           WAIT_FOR_SCHEDULE: "true"
           DAILY_START_TIME: "11:45"
           POLL_INTERVAL_MS: "15000"
-          WATCH_DATE_OFFSETS: "0,1,2,3,4,5,6,7"
+          WATCH_DATE_OFFSETS: "0"
           ROUTE_KEYWORD: "6 أكتوبر"
           PICKUP_KEYWORD: "ليلة القدر"
           DIRECTION: "return"

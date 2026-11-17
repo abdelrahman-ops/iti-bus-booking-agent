@@ -28,7 +28,7 @@ export const config = {
   baseUrl: required("ITI_BASE_URL", "https://schedule.iti.gov.eg").replace(/\/$/, ""),
   dashboardPath: required("DASHBOARD_PATH", "/dashboard"),
   pollIntervalMs: Number(required("POLL_INTERVAL_MS", "30000")),
-  dateOffsets: numberList(required("WATCH_DATE_OFFSETS", "0,1,2,3,4,5,6,7")),
+  dateOffsets: numberList(required("WATCH_DATE_OFFSETS", "0")),
   timezone: required("TIMEZONE", "Africa/Cairo"),
   routeKeyword: required("ROUTE_KEYWORD", "6 أكتوبر"),
   pickupKeyword: required("PICKUP_KEYWORD", "ليلة القدر"),
