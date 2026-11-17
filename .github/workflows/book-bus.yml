@@ -7,7 +7,33 @@ on:
     # Runs Sunday to Thursday (0-4 in cron).
     # Starts at 09:40 UTC so runner warms up and is actively monitoring when 11:45 AM arrives.
     - cron: '40 9 * * 0-4'
-  workflow_dispatch: # Allows manual trigger from GitHub UI anytime
+  workflow_dispatch:
+    inputs:
+      route_keyword:
+        description: 'Bus Route (e.g. 6 أكتوبر or رمسيس)'
+        required: false
+        default: '6 أكتوبر'
+        type: string
+      pickup_keyword:
+        description: 'Pickup Stop (e.g. ليلة القدر or رمسيس)'
+        required: false
+        default: 'ليلة القدر'
+        type: string
+      daily_start_time:
+        description: 'Cairo Start Time (HH:MM e.g. 11:45 or 11:59)'
+        required: false
+        default: '11:45'
+        type: string
+      monitoring_window_minutes:
+        description: 'Monitoring Window in Minutes (default: 30)'
+        required: false
+        default: '30'
+        type: string
+      booking_enabled:
+        description: 'Enable Booking (uncheck for dry-run check only)'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   book-bus:
@@ -41,15 +67,15 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_API_BASE: ${{ secrets.TELEGRAM_API_BASE || 'https://telegram-proxy.abdelrahmanataa17.workers.dev' }}
-          BOOKING_ENABLED: "true"
+          BOOKING_ENABLED: ${{ github.event.inputs.booking_enabled != '' && github.event.inputs.booking_enabled || vars.BOOKING_ENABLED || 'true' }}
           EXIT_ON_SUCCESS: "true"
           WAIT_FOR_SCHEDULE: "true"
-          DAILY_START_TIME: "11:45"
-          MONITORING_WINDOW_MINUTES: "30"
+          DAILY_START_TIME: ${{ github.event.inputs.daily_start_time || vars.DAILY_START_TIME || '11:45' }}
+          MONITORING_WINDOW_MINUTES: ${{ github.event.inputs.monitoring_window_minutes || vars.MONITORING_WINDOW_MINUTES || '30' }}
           POLL_INTERVAL_MS: "15000"
           WATCH_DATE_OFFSETS: "0"
-          ROUTE_KEYWORD: "6 أكتوبر"
-          PICKUP_KEYWORD: "ليلة القدر"
+          ROUTE_KEYWORD: ${{ github.event.inputs.route_keyword || vars.ROUTE_KEYWORD || '6 أكتوبر' }}
+          PICKUP_KEYWORD: ${{ github.event.inputs.pickup_keyword || vars.PICKUP_KEYWORD || 'ليلة القدر' }}
           DIRECTION: "return"
           TIMEZONE: "Africa/Cairo"
           HEADLESS: "true"

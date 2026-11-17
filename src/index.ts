@@ -60,6 +60,19 @@ try {
   monitorRef = monitor;
 
   await monitor.run();
+
+  log.info("Agent run finished cleanly. Shutting down browser context and database...");
+  try {
+    await context.close();
+  } catch (err) {
+    log.error("Error closing browser context.", err);
+  }
+  try {
+    repository.close();
+  } catch (err) {
+    log.error("Error closing repository.", err);
+  }
+  process.exit(0);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   log.error("Fatal agent error. Stopping...", { error: message });
