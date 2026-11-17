@@ -1,0 +1,53 @@
+name: ITI Bus Daily Auto-Booker
+
+on:
+  schedule:
+    # Cairo is UTC+2 (winter).
+    # 11:40 AM Cairo = 09:40 AM UTC.
+    # Runs Sunday to Thursday (0-4 in cron).
+    # Starts at 09:40 UTC so runner warms up and is actively monitoring when 11:45 AM arrives.
+    - cron: '40 9 * * 0-4'
+  workflow_dispatch: # Allows manual trigger from GitHub UI anytime
+
+jobs:
+  book-bus:
+    name: Monitor and Book Bus
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Execute Monitoring & Booking
+        env:
+          ITI_STORAGE_STATE: ${{ secrets.ITI_STORAGE_STATE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BOOKING_ENABLED: "true"
+          EXIT_ON_SUCCESS: "true"
+          WAIT_FOR_SCHEDULE: "true"
+          DAILY_START_TIME: "11:45"
+          POLL_INTERVAL_MS: "15000"
+          WATCH_DATE_OFFSETS: "0,1,2,3,4,5,6,7"
+          ROUTE_KEYWORD: "6 أكتوبر"
+          PICKUP_KEYWORD: "ليلة القدر"
+          DIRECTION: "return"
+          TIMEZONE: "Africa/Cairo"
+          HEADLESS: "true"
+        run: npm start
