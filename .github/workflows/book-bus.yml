@@ -60,10 +60,20 @@ jobs:
       - name: Build Application
         run: npm run build
 
+      - name: Restore Session Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/storage-state.json
+          key: iti-session-v2-${{ github.run_id }}
+          restore-keys: |
+            iti-session-v2-
+
       - name: Execute Monitoring & Booking
         env:
           NODE_OPTIONS: "--dns-result-order=ipv4first"
           ITI_STORAGE_STATE: ${{ secrets.ITI_STORAGE_STATE }}
+          ITI_EMAIL: ${{ secrets.ITI_EMAIL }}
+          ITI_PASSWORD: ${{ secrets.ITI_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_API_BASE: ${{ secrets.TELEGRAM_API_BASE || 'https://telegram-proxy.abdelrahmanataa17.workers.dev' }}
@@ -80,3 +90,10 @@ jobs:
           TIMEZONE: "Africa/Cairo"
           HEADLESS: "true"
         run: npm start
+
+      - name: Save Session Cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/storage-state.json
+          key: iti-session-v2-${{ github.run_id }}

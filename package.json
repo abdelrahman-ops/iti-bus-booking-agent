@@ -11,6 +11,8 @@
     "export-session": "tsx src/export-session.ts",
     "test-telegram": "tsx src/test-telegram.ts",
     "diagnose": "tsx src/diagnostics.ts",
+    "ui": "tsx src/server.ts",
+    "dashboard": "tsx src/server.ts",
     "test": "tsx --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

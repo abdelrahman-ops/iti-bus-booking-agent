@@ -33,6 +33,44 @@ export class SessionManager {
     }
   }
 
+  async loginWithCredentials(): Promise<void> {
+    if (!config.itiEmail || !config.itiPassword) {
+      throw new Error("ITI_EMAIL and ITI_PASSWORD are required for automated credential login.");
+    }
+
+    log.info("Attempting automated login via ITI_EMAIL and ITI_PASSWORD credentials...");
+    const response = await this.context.request.post(
+      `${config.baseUrl}/api/v1/auth/login`,
+      {
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        data: {
+          email: config.itiEmail,
+          password: config.itiPassword
+        },
+        failOnStatusCode: false,
+        timeout: 15_000
+      }
+    );
+
+    if (!response.ok()) {
+      const errText = await response.text();
+      this.accessToken = null;
+      throw new Error(`ITI automated login failed with HTTP ${response.status()}: ${errText}`);
+    }
+
+    const body = await response.json() as RefreshResponse;
+    const token = body.data?.accessToken;
+    if (!token) {
+      this.accessToken = null;
+      throw new Error("Login response did not contain data.accessToken.");
+    }
+
+    this.accessToken = token;
+    this.expiresAtMs = this.decodeExpiry(token);
+    log.info("ITI credentials login succeeded. Session refreshed and persisted.");
+    await persistStorageState(this.context);
+  }
+
   async refresh(force = false): Promise<void> {
     if (this.refreshing) return this.refreshing;
     if (!force && this.accessToken && Date.now() < this.expiresAtMs - 60_000) return;
@@ -49,13 +87,23 @@ export class SessionManager {
       );
 
       if (!response.ok()) {
+        if (config.itiEmail && config.itiPassword) {
+          log.warn(`Token refresh failed with HTTP ${response.status()}. Falling back to credential auto-login...`);
+          await this.loginWithCredentials();
+          return;
+        }
         this.accessToken = null;
-        throw new Error(`ITI refresh failed with HTTP ${response.status()}. Re-authenticate using npm run login.`);
+        throw new Error(`ITI refresh failed with HTTP ${response.status()}. Re-authenticate using npm run login or set ITI_EMAIL and ITI_PASSWORD.`);
       }
 
       const body = await response.json() as RefreshResponse;
       const token = body.data?.accessToken;
       if (!body.success || !token) {
+        if (config.itiEmail && config.itiPassword) {
+          log.warn("Refresh body lacked access token. Falling back to credential auto-login...");
+          await this.loginWithCredentials();
+          return;
+        }
         this.accessToken = null;
         throw new Error("Refresh response did not contain data.accessToken.");
       }

@@ -44,6 +44,8 @@ export const config = {
   telegramBotToken: optional("TELEGRAM_BOT_TOKEN"),
   telegramChatId: optional("TELEGRAM_CHAT_ID"),
   telegramApiBase: optional("TELEGRAM_API_BASE", "https://api.telegram.org").replace(/\/$/, ""),
+  itiEmail: optional("ITI_EMAIL"),
+  itiPassword: optional("ITI_PASSWORD"),
   rateLimitMaxRequests: Number(required("RATE_LIMIT_MAX_REQUESTS", "30")),
   rateLimitWindowMs: Number(required("RATE_LIMIT_WINDOW_MS", "60000")),
   requestTimeoutMs: Number(required("REQUEST_TIMEOUT_MS", "15000")),
