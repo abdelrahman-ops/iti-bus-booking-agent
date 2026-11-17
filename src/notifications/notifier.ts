@@ -96,141 +96,16 @@ export class TelegramNotifier implements Notifier {
     }
   }
 
-  async sendDiscordMessage(text: string): Promise<boolean> {
-    if (!config.discordWebhookUrl) {
-      return false;
-    }
-
-    try {
-      const response = await fetch(config.discordWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
-        signal: AbortSignal.timeout(15_000)
-      });
-
-      if (!response.ok) {
-        log.warn("Discord webhook notification rejected.", { status: response.status });
-        return false;
-      }
-      log.info("Discord notification delivered successfully.");
-      return true;
-    } catch (error) {
-      log.warn("Discord webhook network error.", {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return false;
-    }
-  }
-
-  async sendWhatsAppMessage(text: string): Promise<boolean> {
-    if (!config.whatsappPhone || !config.whatsappApiKey) {
-      return false;
-    }
-
-    try {
-      const phone = config.whatsappPhone.replace(/[^0-9]/g, "");
-      const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(text)}&apikey=${config.whatsappApiKey.trim()}`;
-      const response = await fetch(url, {
-        method: "GET",
-        signal: AbortSignal.timeout(15_000)
-      });
-
-      if (!response.ok) {
-        log.warn("CallMeBot WhatsApp notification rejected.", {
-          status: response.status,
-          statusText: response.statusText
-        });
-        return false;
-      }
-
-      log.info(`WhatsApp notification delivered to ${config.whatsappPhone} via CallMeBot.`);
-      return true;
-    } catch (error) {
-      log.warn("CallMeBot WhatsApp notification network error.", {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return false;
-    }
-  }
-
-  async sendNtfyMessage(title: string, text: string): Promise<boolean> {
-    const topic = (config.ntfyTopic || "iti-bus-01015372301").trim();
-    if (!topic) {
-      return false;
-    }
-
-    try {
-      const url = `https://ntfy.sh/${encodeURIComponent(topic)}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Title: title,
-          Priority: "high",
-          Tags: "bus"
-        },
-        body: text,
-        signal: AbortSignal.timeout(15_000)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        log.warn("ntfy push notification failed.", { status: response.status, response: errorText });
-        return false;
-      }
-
-      log.info(`Push notification delivered via ntfy.sh topic "${topic}".`);
-      return true;
-    } catch (error) {
-      log.warn("ntfy push notification network error.", {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return false;
-    }
-  }
-
-  async broadcastMessage(title: string, htmlText: string): Promise<boolean> {
-    const plainText = htmlText
-      .replace(/<b>(.*?)<\/b>/g, "*$1*")
-      .replace(/<code>(.*?)<\/code>/g, "$1")
-      .replace(/<.*?>/g, "");
-
-    const tasks: Promise<boolean>[] = [];
-
-    if (this.isConfigured) {
-      tasks.push(this.sendTelegramMessage(htmlText));
-    }
-
-    if (config.whatsappPhone && config.whatsappApiKey) {
-      tasks.push(this.sendWhatsAppMessage(plainText));
-    }
-
-    const ntfyTopic = (config.ntfyTopic || "iti-bus-01015372301").trim();
-    if (ntfyTopic) {
-      tasks.push(this.sendNtfyMessage(title, plainText));
-    }
-
-    if (config.discordWebhookUrl) {
-      tasks.push(this.sendDiscordMessage(plainText));
-    }
-
-    if (tasks.length === 0) {
-      log.info(`[Notification (No Channel Configured)]\n${plainText}`);
-      return false;
-    }
-
-    const results = await Promise.allSettled(tasks);
-    return results.some((r) => r.status === "fulfilled" && r.value === true);
-  }
-
   async testConnection(): Promise<{ success: boolean; message: string }> {
-    const success = await this.broadcastMessage(
-      "ITI Bus Agent - Test Notification",
+    if (!this.isConfigured) {
+      return { success: false, message: "Telegram bot token or chat ID is not configured." };
+    }
+    const success = await this.sendTelegramMessage(
       "🤖 <b>ITI Bus Agent</b>: Test notification. Connection established successfully!"
     );
     return success
-      ? { success: true, message: "Notification test message delivered successfully." }
-      : { success: false, message: "Notification test message delivery failed." };
+      ? { success: true, message: "Telegram test message delivered successfully." }
+      : { success: false, message: "Telegram test message delivery failed." };
   }
 
   async notifyMonitoringStarted(details: Record<string, unknown>): Promise<void> {
@@ -243,7 +118,7 @@ export class TelegramNotifier implements Notifier {
       `• Auto-Book: <code>${config.bookingEnabled ? "ENABLED" : "DISABLED (Dry Run)"}</code>`,
       `• Search Offsets: <code>${config.dateOffsets.join(", ")}</code>`
     ].join("\n");
-    await this.broadcastMessage("ITI Bus Agent - Monitoring Started", text);
+    await this.sendTelegramMessage(text);
   }
 
   async notifyTripMatched(trip: MatchedTripDetails): Promise<void> {
@@ -258,7 +133,7 @@ export class TelegramNotifier implements Notifier {
     ]
       .filter(Boolean)
       .join("\n");
-    await this.broadcastMessage("ITI Bus Agent - Matching Trip Found!", text);
+    await this.sendTelegramMessage(text);
   }
 
   async notifyBookingSubmitted(trip: MatchedTripDetails, attemptId: number): Promise<void> {
@@ -271,7 +146,7 @@ export class TelegramNotifier implements Notifier {
       `• Route: ${trip.routeName}`,
       "Awaiting server confirmation..."
     ].join("\n");
-    await this.broadcastMessage("ITI Bus Agent - Booking Submitted", text);
+    await this.sendTelegramMessage(text);
   }
 
   async notifyBookingConfirmed(booking: ConfirmedBookingDetails): Promise<void> {
@@ -288,7 +163,7 @@ export class TelegramNotifier implements Notifier {
     ]
       .filter(Boolean)
       .join("\n");
-    await this.broadcastMessage("ITI Bus Agent - BOOKING CONFIRMED! 🎉", text);
+    await this.sendTelegramMessage(text);
   }
 
   async notifyAuthFailure(reason: string): Promise<void> {
@@ -297,7 +172,7 @@ export class TelegramNotifier implements Notifier {
       `Reason: ${reason}`,
       "The refresh session has expired or is invalid. Please run <code>npm run login</code> to re-authenticate."
     ].join("\n");
-    await this.broadcastMessage("ITI Bus Agent - Auth Failure", text);
+    await this.sendTelegramMessage(text);
   }
 
   async notifyReconciliationRequired(details: ReconciliationDetails): Promise<void> {
@@ -314,7 +189,7 @@ export class TelegramNotifier implements Notifier {
       "<b>Automatic retries have been BLOCKED.</b>",
       "Please check your ITI booking dashboard manually to reconcile."
     ].join("\n");
-    await this.broadcastMessage("ITI Bus Agent - Action Required", text);
+    await this.sendTelegramMessage(text);
   }
 
   async notifyAlreadyBooked(details: {
@@ -331,7 +206,7 @@ export class TelegramNotifier implements Notifier {
       `• Trip ID: <code>${details.tripId}</code>`,
       "No additional booking action is needed for this date."
     ].join("\n");
-    await this.broadcastMessage("ITI Bus Agent - Already Booked", text);
+    await this.sendTelegramMessage(text);
   }
 
   async notifyWindowClosed(details: { reason: string; date: string }): Promise<void> {
@@ -341,6 +216,6 @@ export class TelegramNotifier implements Notifier {
       `• Outcome: ${details.reason}`,
       "Daily monitoring session completed cleanly."
     ].join("\n");
-    await this.broadcastMessage("ITI Bus Agent - Window Closed", text);
+    await this.sendTelegramMessage(text);
   }
 }
