@@ -9,6 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "login": "tsx src/login.ts",
     "export-session": "tsx src/export-session.ts",
+    "test-telegram": "tsx src/test-telegram.ts",
     "diagnose": "tsx src/diagnostics.ts",
     "test": "tsx --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
