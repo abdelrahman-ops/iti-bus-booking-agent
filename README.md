@@ -1,6 +1,8 @@
 # ITI Bus Booking Agent
 
-An automated, reliable ITI bus monitoring and booking agent built with Node.js, TypeScript, and Playwright. The agent is designed to run 24/7 on an Ubuntu Linux VPS under `systemd`, independently of local desktop browser sessions.
+An automated, reliable ITI bus monitoring and booking agent built with Node.js, TypeScript, and Playwright. The agent is designed to run in GitHub Actions or 24/7 on an Ubuntu Linux VPS under `systemd`, independently of local desktop browser sessions.
+
+> 📖 **Developer Documentation:** For complete backend REST API endpoints, schemas, authentication flows, and the verified ITI bus routes directory, see [ROUTES.md](file:///e:/Technology/GitHub%20REPOS/iti-bus-booker/ROUTES.md).
 
 ---
 
