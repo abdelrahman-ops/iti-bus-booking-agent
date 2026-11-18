@@ -123,13 +123,13 @@ export class AvailabilityMonitor {
     // status === "AFTER_WINDOW"
     const windowEndFormatted = formatCairoDateTime(windowStatus.windowEnd);
     log.info(
-      `Current Cairo time (${formatCairoDateTime(now)}) is AFTER today's booking window (${config.dailyStartTime} to ${formatCairoTimeOnly(windowStatus.windowEnd)}). Today's window closed at ${windowEndFormatted}.`
+      `Current Cairo time (${formatCairoDateTime(now)}) is AFTER today's scheduled booking window (${config.dailyStartTime} to ${formatCairoTimeOnly(windowStatus.windowEnd)}). Executing an immediate check cycle to see if trips/seats are still available...`
     );
 
     if (config.exitOnSuccess || process.env.GITHUB_ACTIONS === "true") {
-      log.info("Outside today's booking window in one-shot/CI environment. Shutting down cleanly.");
-      this.stop();
-      return null;
+      // In CI / one-shot environment, still run for up to 2 minutes so any available seats are actively booked!
+      const deadlineMs = Date.now() + 120_000;
+      return { deadlineMs };
     }
 
     // Continuous 24/7 daemon mode: sleep until tomorrow's start time
