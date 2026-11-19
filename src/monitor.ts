@@ -78,6 +78,14 @@ export class AvailabilityMonitor {
     );
 
     if (!config.waitForSchedule) {
+      if (windowStatus.status === "AFTER_WINDOW" && (config.exitOnSuccess || process.env.GITHUB_ACTIONS === "true")) {
+        const deadlineMs = Date.now() + 120_000;
+        log.info(
+          `Manual trigger is AFTER today's scheduled booking window. Executing a fast check cycle (up to 2 minutes) for any remaining or cancelled seats...`,
+          { deadline: formatCairoDateTime(new Date(deadlineMs)) }
+        );
+        return { deadlineMs };
+      }
       const deadlineMs = Date.now() + config.monitoringWindowMinutes * 60_000;
       log.info(
         `WAIT_FOR_SCHEDULE is disabled. Monitoring starts immediately for up to ${config.monitoringWindowMinutes} minutes.`,

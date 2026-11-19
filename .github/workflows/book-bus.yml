@@ -2,11 +2,23 @@ name: ITI Bus Daily Auto-Booker
 
 on:
   schedule:
-    # Cairo is UTC+2 (winter).
+    # Cairo is UTC+2 (winter time).
+    # Target booking opens at 11:45 AM Cairo (= 09:45 AM UTC).
     # Runs Sunday to Thursday (0-4 in cron).
-    # Multiple cron ticks (09:35, 09:40, 09:45, 09:50 UTC = 11:35 to 11:50 Cairo):
-    # Provides redundancy against GitHub Actions scheduler delays.
-    - cron: '35,40,45,50 9 * * 0-4'
+    # We register multiple individual cron triggers starting 15 minutes early:
+    # - 09:30 UTC = 11:30 AM Cairo
+    # - 09:35 UTC = 11:35 AM Cairo
+    # - 09:40 UTC = 11:40 AM Cairo
+    # - 09:44 UTC = 11:44 AM Cairo
+    # Redundancy strategy:
+    # 1. Separate individual cron lines are strictly compatible with GitHub Actions POSIX parser.
+    # 2. Starting early shields against GitHub Actions runner queue delays (5-10 min jitter).
+    # 3. Once the runner starts early, the agent's Node.js timer holds until 11:45:00.000 Cairo.
+    # 4. Once a booking succeeds, subsequent runs detect the confirmed booking and exit in 2 seconds.
+    - cron: '30 9 * * 0-4'
+    - cron: '35 9 * * 0-4'
+    - cron: '40 9 * * 0-4'
+    - cron: '44 9 * * 0-4'
   workflow_dispatch:
     inputs:
       route_keyword:
@@ -25,9 +37,9 @@ on:
         default: '11:45'
         type: string
       monitoring_window_minutes:
-        description: 'Monitoring Window in Minutes (default: 90)'
+        description: 'Monitoring Window in Minutes (default: 20)'
         required: false
-        default: '90'
+        default: '20'
         type: string
       booking_enabled:
         description: 'Enable Booking (uncheck for dry-run check only)'
@@ -39,7 +51,7 @@ jobs:
   book-bus:
     name: Monitor and Book Bus
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
 
     steps:
       - name: Checkout Code
@@ -81,7 +93,7 @@ jobs:
           EXIT_ON_SUCCESS: "true"
           WAIT_FOR_SCHEDULE: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           DAILY_START_TIME: ${{ github.event.inputs.daily_start_time || vars.DAILY_START_TIME || '11:45' }}
-          MONITORING_WINDOW_MINUTES: ${{ github.event.inputs.monitoring_window_minutes || vars.MONITORING_WINDOW_MINUTES || '90' }}
+          MONITORING_WINDOW_MINUTES: ${{ github.event.inputs.monitoring_window_minutes || vars.MONITORING_WINDOW_MINUTES || '20' }}
           POLL_INTERVAL_MS: "15000"
           WATCH_DATE_OFFSETS: "0"
           ROUTE_KEYWORD: ${{ github.event.inputs.route_keyword || vars.ROUTE_KEYWORD || '6 أكتوبر' }}
