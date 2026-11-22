@@ -9,8 +9,9 @@ Comprehensive technical reference for developers maintaining, extending, or inte
 - **Production Base URL:** `https://schedule.iti.gov.eg`
 - **REST API Prefix:** `/api/v1`
 - **Frontend App:** Flutter Web (CanvasKit / WASM)
+- **Mandatory App Version Header:** `X-App-Build: 1` (fetched dynamically from `https://schedule.iti.gov.eg/version.json`). Requests omitting this header return `400 Bad Request` with code `APP_UPDATE_REQUIRED`.
 - **Authentication Scheme:** Short-lived JWT Bearer token (`Authorization: Bearer <accessToken>`) combined with a 7-day HttpOnly cookie session (`refresh_token`).
-- **Server Platform:** NGINX reverse proxy with rate limiting headers (`x-ratelimit-limit: 1000`, `x-ratelimit-remaining: 999`, `x-ratelimit-reset: 60`).
+- **Server Platform:** NGINX reverse proxy with rate limiting headers (`x-ratelimit-limit: 150`, `x-ratelimit-remaining: 146`, `x-ratelimit-reset: 60`).
 
 ---
 
@@ -236,25 +237,130 @@ Books a seat on a target trip. Requires both `tripId` and `pickupStopId`.
 Retrieves all past and confirmed upcoming bookings for the authenticated user.
 
 - **Method:** `GET`
-- **Path:** `/api/v1/bookings`
-- **Headers:** `Authorization: Bearer <accessToken>`
+- **Path:** `/api/v1/bookings?page=0&size=10`
+- **Headers:** `Authorization: Bearer <accessToken>`, `X-App-Build: 1`
 - **Response `200 OK` Structure:**
   ```json
   {
     "success": true,
-    "data": [
-      {
-        "id": 2188,
-        "bookingCode": "BK160046",
-        "tripId": 408,
-        "routeName": "خط 6 أكتوبر ليلة القدر 1",
-        "tripDate": "2026-11-18",
-        "pickupLocation": "ليلة القدر",
-        "status": "CONFIRMED",
-        "isReturnTrip": true,
-        "bookedAt": "2026-11-17T11:46:12.000Z"
-      }
-    ]
+    "data": {
+      "content": [
+        {
+          "id": 2188,
+          "bookingCode": "BK160046",
+          "tripId": 408,
+          "routeName": "خط 6 أكتوبر ليلة القدر 1",
+          "tripDate": "2026-11-18",
+          "pickupLocation": "ليلة القدر",
+          "status": "CONFIRMED",
+          "isReturnTrip": true,
+          "bookedAt": "2026-11-17T11:46:12.000Z"
+        }
+      ]
+    }
+  }
+  ```
+
+#### C. Cancel Existing Booking
+Cancels a previously booked seat.
+
+- **Method:** `DELETE`
+- **Path:** `/api/v1/bookings/{bookingId}`
+- **Headers:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+  - `X-App-Build: 1`
+- **Request Body (Optional reason):**
+  ```json
+  {
+    "reason": "Sick leave / Online session"
+  }
+  ```
+- **Response `200 OK`:**
+  ```json
+  {
+    "success": true,
+    "message": "Booking cancelled successfully"
+  }
+  ```
+
+---
+
+### 3.4. Student Profile & Permissions APIs
+
+#### A. Fetch Student Permissions & Restrictions
+Checks whether the student is allowed to book, change routes, or has an active suspension/penalty.
+
+- **Method:** `GET`
+- **Path:** `/api/v1/students/me/permissions`
+- **Headers:**
+  - `Authorization: Bearer <accessToken>`
+  - `X-App-Build: 1`
+- **Response `200 OK` (Active Restriction Example):**
+  ```json
+  {
+    "success": true,
+    "message": "Permissions retrieved successfully",
+    "data": {
+      "canBookAllRoutes": false,
+      "restrictedUntil": "2026-11-25",
+      "canBookTrips": false,
+      "canChangeRoute": false,
+      "restrictionReason": null,
+      "routeChangeUsed": false
+    },
+    "timestamp": "2026-11-22T11:04:37.870843339"
+  }
+  ```
+
+#### B. Fetch Student Profile
+Retrieves personal profile, track information, default route, and penalty counts.
+
+- **Method:** `GET`
+- **Path:** `/api/v1/students/me`
+- **Headers:**
+  - `Authorization: Bearer <accessToken>`
+  - `X-App-Build: 1`
+- **Response `200 OK`:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": 615,
+      "fullName": "Student Name",
+      "email": "student@example.com",
+      "phoneNumber": "01000000000",
+      "trackName": "Open Source",
+      "intakeNumber": 45,
+      "routeName": "خط 6 أكتوبر ليلة القدر 1",
+      "defaultPickupStopName": "ليلة القدر",
+      "noShows": 1,
+      "cancellations": 0
+    }
+  }
+  ```
+
+#### C. Switch Return Bus Route
+Allows a student to switch their assigned return bus to a different route.
+
+- **Method:** `POST`
+- **Path:** `/api/v1/students/return-bus-switch`
+- **Headers:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+  - `X-App-Build: 1`
+- **Request Body:**
+  ```json
+  {
+    "routeId": 16,
+    "pickupStopId": 31
+  }
+  ```
+- **Response `200 OK`:**
+  ```json
+  {
+    "success": true,
+    "message": "Return route switched successfully"
   }
   ```
 
