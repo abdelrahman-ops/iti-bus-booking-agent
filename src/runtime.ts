@@ -42,7 +42,10 @@ export async function openPersistentContext(headless = config.headless): Promise
     headless,
     acceptDownloads: false,
     serviceWorkers: "allow",
-    args: ["--disable-dev-shm-usage"]
+    args: ["--disable-dev-shm-usage"],
+    extraHTTPHeaders: {
+      "X-App-Build": "1"
+    }
   });
 
   // 3. Inject cookies and localStorage from storage-state.json into context

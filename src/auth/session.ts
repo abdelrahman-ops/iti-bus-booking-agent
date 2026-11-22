@@ -2,6 +2,7 @@ import type { BrowserContext } from "playwright";
 import { config } from "../config.js";
 import { log } from "../log.js";
 import { persistStorageState } from "../runtime.js";
+import { getItiApiHeaders } from "../api/version.js";
 
 interface RefreshResponse {
   success?: boolean;
@@ -39,10 +40,11 @@ export class SessionManager {
     }
 
     log.info("Attempting automated login via ITI_EMAIL and ITI_PASSWORD credentials...");
+    const headers = await getItiApiHeaders({ "Content-Type": "application/json" });
     const response = await this.context.request.post(
       `${config.baseUrl}/api/v1/auth/login`,
       {
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        headers,
         data: {
           email: config.itiEmail,
           password: config.itiPassword
@@ -77,10 +79,11 @@ export class SessionManager {
 
     this.refreshing = (async () => {
       // BrowserContext.request shares cookies with this context and processes Set-Cookie.
+      const headers = await getItiApiHeaders({ "Content-Type": "application/json" });
       const response = await this.context.request.post(
         `${config.baseUrl}/api/v1/auth/refresh`,
         {
-          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          headers,
           failOnStatusCode: false,
           timeout: 15_000
         }

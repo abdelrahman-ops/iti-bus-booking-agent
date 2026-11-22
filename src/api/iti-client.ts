@@ -2,6 +2,7 @@ import type { APIResponse, BrowserContext } from "playwright";
 import { config } from "../config.js";
 import { SessionManager } from "../auth/session.js";
 import { log } from "../log.js";
+import { getItiApiHeaders } from "./version.js";
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -132,14 +133,14 @@ export class ItiClient {
     const executeRequest = async (): Promise<APIResponse> => {
       await this.throttle();
       const token = await this.session.getAccessToken();
+      const headers = await getItiApiHeaders({
+        Authorization: `Bearer ${token}`
+      });
       try {
         return await this.context.request.get(
           `${config.baseUrl}/api/v1/trips/available?date=${encodeURIComponent(date)}`,
           {
-            headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${token}`
-            },
+            headers,
             timeout: config.requestTimeoutMs,
             failOnStatusCode: false
           }
@@ -195,13 +196,13 @@ export class ItiClient {
     const executePost = async (): Promise<APIResponse> => {
       await this.throttle();
       const token = await this.session.getAccessToken();
+      const headers = await getItiApiHeaders({
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      });
       try {
         return await this.context.request.post(`${config.baseUrl}/api/v1/bookings`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Accept: "application/json"
-          },
+          headers,
           data: {
             tripId,
             pickupStopId
@@ -265,14 +266,14 @@ export class ItiClient {
 
     await this.throttle();
     const token = await this.session.getAccessToken();
+    const headers = await getItiApiHeaders({
+      Authorization: `Bearer ${token}`
+    });
 
     const response = await this.context.request.get(
       `${config.baseUrl}/api/v1/routes/${routeId}/stops`,
       {
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`
-        },
+        headers,
         timeout: config.requestTimeoutMs,
         failOnStatusCode: false
       }
@@ -296,12 +297,12 @@ export class ItiClient {
   async getUserBookings(): Promise<UserBookingRecord[]> {
     await this.throttle();
     const token = await this.session.getAccessToken();
+    const headers = await getItiApiHeaders({
+      Authorization: `Bearer ${token}`
+    });
 
     const response = await this.context.request.get(`${config.baseUrl}/api/v1/bookings`, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`
-      },
+      headers,
       timeout: config.requestTimeoutMs,
       failOnStatusCode: false
     });
