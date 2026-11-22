@@ -195,6 +195,23 @@ export class AvailabilityMonitor {
       }
     }
 
+    // Check student permissions and restrictions
+    const permissions = await this.client.getStudentPermissions();
+    if (!permissions.canBookTrips) {
+      log.warn("Student account is RESTRICTED from booking trips.", {
+        restrictedUntil: permissions.restrictedUntil,
+        reason: permissions.restrictionReason
+      });
+      await this.notifier.notifyAccountRestricted({
+        restrictedUntil: permissions.restrictedUntil,
+        reason: permissions.restrictionReason
+      });
+      if (config.exitOnSuccess || process.env.GITHUB_ACTIONS === "true") {
+        log.info("Account is restricted from booking trips in one-shot/CI environment. Shutting down cleanly.");
+        return;
+      }
+    }
+
     const schedule = await this.waitForScheduledStart();
     if (!schedule || this.stopped) return;
 

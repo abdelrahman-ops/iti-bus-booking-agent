@@ -53,6 +53,15 @@ export interface UserBookingRecord {
   isReturnTrip?: boolean;
 }
 
+export interface StudentPermissions {
+  canBookTrips: boolean;
+  canBookAllRoutes?: boolean;
+  restrictedUntil?: string | null;
+  canChangeRoute?: boolean;
+  restrictionReason?: string | null;
+  routeChangeUsed?: boolean;
+}
+
 export class NetworkTimeoutError extends Error {
   constructor(message: string, public override readonly cause?: unknown) {
     super(message);
@@ -320,5 +329,43 @@ export class ItiClient {
       return body.data.content;
     }
     return [];
+  }
+
+  /**
+   * Retrieves student permissions and restrictions: GET /api/v1/students/me/permissions.
+   */
+  async getStudentPermissions(): Promise<StudentPermissions> {
+    try {
+      await this.throttle();
+      const token = await this.session.getAccessToken();
+      const headers = await getItiApiHeaders({
+        Authorization: `Bearer ${token}`
+      });
+
+      const response = await this.context.request.get(
+        `${config.baseUrl}/api/v1/students/me/permissions`,
+        {
+          headers,
+          timeout: config.requestTimeoutMs,
+          failOnStatusCode: false
+        }
+      );
+
+      if (response.ok()) {
+        const body = (await response.json()) as {
+          success?: boolean;
+          data?: StudentPermissions;
+        };
+        if (body.success && body.data) {
+          return body.data;
+        }
+      }
+    } catch (err) {
+      log.warn("Could not retrieve student permissions; assuming normal permissions.", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
+
+    return { canBookTrips: true };
   }
 }

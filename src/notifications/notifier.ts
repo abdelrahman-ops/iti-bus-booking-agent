@@ -38,6 +38,7 @@ export interface Notifier {
   notifyReconciliationRequired(details: ReconciliationDetails): Promise<void>;
   notifyAlreadyBooked(details: { date: string; bookingCode: string; tripId: string | number; routeName: string }): Promise<void>;
   notifyWindowClosed(details: { reason: string; date: string }): Promise<void>;
+  notifyAccountRestricted(details: { restrictedUntil?: string | null | undefined; reason?: string | null | undefined }): Promise<void>;
 }
 
 export class TelegramNotifier implements Notifier {
@@ -216,6 +217,21 @@ export class TelegramNotifier implements Notifier {
       `• Outcome: ${details.reason}`,
       "Daily monitoring session completed cleanly."
     ].join("\n");
+    await this.sendTelegramMessage(text);
+  }
+
+  async notifyAccountRestricted(details: {
+    restrictedUntil?: string | null | undefined;
+    reason?: string | null | undefined;
+  }): Promise<void> {
+    const text = [
+      "🚫 <b>ITI Bus Agent: Account Restricted from Booking</b>",
+      `• Restricted Until: <b>${details.restrictedUntil || "Unknown"}</b>`,
+      details.reason ? `• Reason: ${details.reason}` : "",
+      "",
+      "⚠️ Your ITI student account is temporarily restricted from booking bus trips (standard 3-day penalty for a No-Show or unconfirmed trip).",
+      "Booking attempts are paused. You can contact your ITI branch bus coordinator / student affairs to lift the restriction immediately."
+    ].filter(Boolean).join("\n");
     await this.sendTelegramMessage(text);
   }
 }
