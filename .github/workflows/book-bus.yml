@@ -1,24 +1,12 @@
 name: ITI Bus Daily Auto-Booker
 
 on:
-  schedule:
-    # Cairo is UTC+2 (winter time).
-    # Target booking opens at 11:45 AM Cairo (= 09:45 AM UTC).
-    # Runs Sunday to Thursday (0-4 in cron).
-    # We register multiple individual cron triggers starting 15 minutes early:
-    # - 09:30 UTC = 11:30 AM Cairo
-    # - 09:35 UTC = 11:35 AM Cairo
-    # - 09:40 UTC = 11:40 AM Cairo
-    # - 09:44 UTC = 11:44 AM Cairo
-    # Redundancy strategy:
-    # 1. Separate individual cron lines are strictly compatible with GitHub Actions POSIX parser.
-    # 2. Starting early shields against GitHub Actions runner queue delays (5-10 min jitter).
-    # 3. Once the runner starts early, the agent's Node.js timer holds until 11:45:00.000 Cairo.
-    # 4. Once a booking succeeds, subsequent runs detect the confirmed booking and exit in 2 seconds.
-    - cron: '30 9 * * 0-4'
-    - cron: '35 9 * * 0-4'
-    - cron: '40 9 * * 0-4'
-    - cron: '44 9 * * 0-4'
+  # SCHEDULE DISABLED - Agent stopped completely
+  # schedule:
+  #   - cron: '30 9 * * 0-4'
+  #   - cron: '35 9 * * 0-4'
+  #   - cron: '40 9 * * 0-4'
+  #   - cron: '44 9 * * 0-4'
   workflow_dispatch:
     inputs:
       route_keyword:
@@ -44,12 +32,14 @@ on:
       booking_enabled:
         description: 'Enable Booking (uncheck for dry-run check only)'
         required: false
-        default: true
+        default: false
         type: boolean
 
 jobs:
   book-bus:
     name: Monitor and Book Bus
+    # DISABLED: Set to false to immediately prevent any execution
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
